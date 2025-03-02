@@ -9,32 +9,6 @@ A simple web interface for interacting with the LLaMA-3.2-1B-Instruct fine-tuned
 - Display of model-generated responses
 - Serverless API for model inference
 
-## Deployment on Vercel
-
-This project is designed to be deployed on Vercel. Follow these steps to deploy:
-
-1. Install the Vercel CLI:
-   ```
-   npm install -g vercel
-   ```
-
-2. Clone this repository and navigate to the project directory.
-
-3. Login to Vercel:
-   ```
-   vercel login
-   ```
-
-4. Deploy the project:
-   ```
-   vercel
-   ```
-
-5. For production deployment:
-   ```
-   vercel --prod
-   ```
-
 ## Local Development
 
 To run the project locally:
@@ -49,9 +23,9 @@ To run the project locally:
    ```
    pip install -r requirements.txt
    ```
-4. Run a local server:
+4. Run the local development server:
    ```
-   python -m http.server
+   python local_server.py
    ```
 5. Open your browser to `http://localhost:8000`
 
@@ -64,6 +38,5 @@ To run the project locally:
 ## Technology Stack
 
 - Frontend: HTML, CSS, JavaScript
-- Backend: Python (Vercel Serverless Functions)
-- Model: LLaMA-3.2-1B-Instruct fine-tuned
-- Deployment: Vercel 
+- Backend: Python
+- Model: LLaMA-3.2-1B-Instruct fine-tuned 
