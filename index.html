@@ -176,8 +176,36 @@
         </div>
     </div>
 
-    <!-- Include configuration file -->
-    <script src="config.js"></script>
+    <!-- Include configuration file - Will try local config first, then fall back to standard config -->
+    <script>
+        // Function to dynamically load a script and handle errors
+        function loadScript(src, fallbackSrc) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = () => {
+                    if (fallbackSrc) {
+                        console.log(`Could not load ${src}, falling back to ${fallbackSrc}`);
+                        const fallbackScript = document.createElement('script');
+                        fallbackScript.src = fallbackSrc;
+                        fallbackScript.onload = resolve;
+                        fallbackScript.onerror = reject;
+                        document.head.appendChild(fallbackScript);
+                    } else {
+                        reject(new Error(`Failed to load script: ${src}`));
+                    }
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        // Try to load the local config first, then fall back to the public config
+        loadScript('config.local.js', 'config.js').catch(error => {
+            console.error('Error loading configuration:', error);
+            alert('Failed to load configuration. Please check your setup.');
+        });
+    </script>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
