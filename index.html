@@ -809,10 +809,87 @@
                             }
                         }
                         
-                        // If none of the models worked, throw the last error
-                        if (!success && lastError) {
+                        // If we get here with DeepSeek and no successes, and we have a last error about Insufficient Balance,
+                        // try to fall back to a free Hugging Face model
+                        if (!success && lastError && lastError.message && lastError.message.includes('Insufficient Balance')) {
+                            // Show user we're trying a fallback
+                            responseOutput.innerHTML = `
+                                <div style="color: var(--warning-color); margin-bottom: 15px;">
+                                    <div class="spinner"></div> DeepSeek account has insufficient balance. 
+                                    Automatically trying fallback to Hugging Face model instead...
+                                </div>
+                            `;
+                            
+                            console.log('DeepSeek insufficient balance, trying fallback to Hugging Face model');
+                            
+                            // Check if we have a Hugging Face token
+                            if (!hfToken) {
+                                responseOutput.innerHTML = `
+                                    <div style="color: var(--error-color); margin-bottom: 15px;">
+                                        <i class="fas fa-exclamation-circle"></i> Cannot use fallback: No Hugging Face API token provided.
+                                    </div>
+                                    <div style="margin-top: 15px; padding: 15px; background-color: #f5f5f5; border-radius: var(--border-radius); border-left: 4px solid var(--warning-color);">
+                                        <p>To use the fallback mechanism, please enter your Hugging Face API token in the field above.</p>
+                                        <p style="margin-top: 10px;">You can get a free Hugging Face API token by:</p>
+                                        <ol style="margin-left: 20px; margin-top: 10px;">
+                                            <li>Creating an account at <a href="https://huggingface.co/join" target="_blank" style="color: var(--primary-color);">Hugging Face</a></li>
+                                            <li>Go to your profile > Settings > Access Tokens</li>
+                                            <li>Create a new token and copy it here</li>
+                                        </ol>
+                                    </div>
+                                `;
+                                throw new Error('No Hugging Face API token available for fallback');
+                            }
+                            
+                            // Try with GPT-2 which is always available on Hugging Face
+                            const fallbackModelId = "gpt2";
+                            
+                            const apiUrl = `https://api-inference.huggingface.co/models/${fallbackModelId}`;
+                            console.log(`Trying fallback to Hugging Face: ${apiUrl}`);
+                            
+                            const response = await fetch(apiUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${hfToken}`,
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ 
+                                    inputs: prompt,
+                                    parameters: {
+                                        max_new_tokens: 500,
+                                        temperature: 0.7,
+                                        top_p: 0.9,
+                                        do_sample: true
+                                    },
+                                    options: {
+                                        wait_for_model: true
+                                    }
+                                }),
+                            });
+                            
+                            if (!response.ok) {
+                                // If fallback also fails, throw the original error
+                                throw lastError;
+                            }
+                            
+                            const data = await response.json();
+                            console.log('Hugging Face fallback response:', data);
+                            
+                            // Handle the response, which could be in different formats
+                            if (Array.isArray(data) && data.length > 0 && data[0].generated_text) {
+                                responseData = `[FALLBACK - Using model: GPT-2]\n\n${data[0].generated_text}`;
+                            } else if (typeof data === 'string') {
+                                responseData = `[FALLBACK - Using model: GPT-2]\n\n${data}`;
+                            } else {
+                                // If unknown format, stringify it
+                                responseData = `[FALLBACK - Using model: GPT-2]\n\n${JSON.stringify(data, null, 2)}`;
+                            }
+                            
+                            success = true;
+                        } else if (!success && lastError) {
                             throw lastError;
                         }
+                        
                     } else {
                         // Use Hugging Face API for non-DeepSeek models
                         const apiUrl = `https://api-inference.huggingface.co/models/${modelId}`;
@@ -865,43 +942,92 @@
                     
                     // Add a special case for DeepSeek API errors
                     if (error.message.includes('DeepSeek API error')) {
-                        const errorDetails = error.message.includes('Model Not Exist') ? 
-                            'The specified model does not exist on DeepSeek\'s platform or is not available in your account.' : 
-                            error.message;
-                            
+                        let errorDetails = '';
+                        let errorGuidance = '';
+                        
+                        // Check for specific error types
+                        if (error.message.includes('Insufficient Balance')) {
+                            errorDetails = 'Your DeepSeek account does not have enough credits to use this model.';
+                            errorGuidance = `
+                                <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: var(--border-radius); border-left: 4px solid var(--warning-color);">
+                                    <h4 style="margin-top: 0;">DeepSeek Account Balance</h4>
+                                    
+                                    <p style="margin-top: 10px; margin-bottom: 15px;">
+                                        <strong>You need to add credits to your DeepSeek account to use their API.</strong>
+                                    </p>
+                                    
+                                    <p style="margin-bottom: 15px;">Here's how to fix this issue:</p>
+                                    <ol style="margin-left: 20px; margin-bottom: 15px;">
+                                        <li>Log in to your <a href="https://platform.deepseek.com/" target="_blank" style="color: var(--primary-color);">DeepSeek Platform account</a></li>
+                                        <li>Go to Billing/Payment section</li>
+                                        <li>Add credits to your account</li>
+                                        <li>Check if you have access to their free tier or need to purchase a subscription</li>
+                                    </ol>
+                                    
+                                    <div style="background-color: rgba(76, 201, 240, 0.1); padding: 10px; border-radius: 6px; margin-top: 15px;">
+                                        <i class="fas fa-lightbulb" style="color: var(--primary-color);"></i> 
+                                        <strong>Tip:</strong> While you resolve your DeepSeek account balance, you can use one of the Hugging Face models from the dropdown instead.
+                                        The "GPT-2 (Always available)" option works without special permissions.
+                                    </div>
+                                </div>
+                            `;
+                        } else if (error.message.includes('Model Not Exist')) {
+                            errorDetails = 'The specified model does not exist on DeepSeek\'s platform or is not available in your account.';
+                            errorGuidance = `
+                                <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: var(--border-radius); border-left: 4px solid var(--primary-color);">
+                                    <h4 style="margin-top: 0;">Troubleshooting DeepSeek API Issues</h4>
+                                    
+                                    <p style="margin-top: 10px; margin-bottom: 15px;">
+                                        <strong>1. Check Your Account Access</strong><br>
+                                        Make sure you have an active DeepSeek account and your API token is valid.
+                                        <a href="https://platform.deepseek.com/" target="_blank" style="color: var(--primary-color);">Visit DeepSeek Platform <i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i></a>
+                                    </p>
+                                    
+                                    <p style="margin-bottom: 15px;">
+                                        <strong>2. Verify Available Models</strong><br>
+                                        You may only have access to specific models. Try these official models:
+                                    </p>
+                                    <ul style="margin-left: 20px; margin-bottom: 15px;">
+                                        <li><code>deepseek-chat</code> - General chat model (most likely available)</li>
+                                        <li><code>deepseek-coder</code> - Coding model (can handle math too)</li>
+                                    </ul>
+                                    
+                                    <p style="margin-bottom: 15px;">
+                                        <strong>3. Subscription Status</strong><br>
+                                        Some models may require a paid subscription or specific access.
+                                    </p>
+                                </div>
+                            `;
+                        } else {
+                            // Generic DeepSeek error
+                            errorDetails = error.message;
+                            errorGuidance = `
+                                <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: var(--border-radius); border-left: 4px solid var(--primary-color);">
+                                    <h4 style="margin-top: 0;">Troubleshooting DeepSeek API Issues</h4>
+                                    
+                                    <p style="margin-top: 10px; margin-bottom: 15px;">
+                                        <strong>1. Check Your Account Status</strong><br>
+                                        Verify that your account is active and properly configured.
+                                        <a href="https://platform.deepseek.com/" target="_blank" style="color: var(--primary-color);">Visit DeepSeek Platform <i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i></a>
+                                    </p>
+                                    
+                                    <p style="margin-bottom: 15px;">
+                                        <strong>2. Verify API Token</strong><br>
+                                        Ensure your API token is valid and has not expired.
+                                    </p>
+                                </div>
+                            `;
+                        }
+                        
                         responseOutput.innerHTML = `
                             <div style="color: var(--error-color); margin-bottom: 15px;">
                                 <i class="fas fa-exclamation-circle"></i> DeepSeek API Error: ${errorDetails}
                             </div>
-                            
-                            <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: var(--border-radius); border-left: 4px solid var(--primary-color);">
-                                <h4 style="margin-top: 0;">Troubleshooting DeepSeek API Issues</h4>
-                                
-                                <p style="margin-top: 10px; margin-bottom: 15px;">
-                                    <strong>1. Check Your Account Access</strong><br>
-                                    Make sure you have an active DeepSeek account and your API token is valid.
-                                    <a href="https://platform.deepseek.com/" target="_blank" style="color: var(--primary-color);">Visit DeepSeek Platform <i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i></a>
-                                </p>
-                                
-                                <p style="margin-bottom: 15px;">
-                                    <strong>2. Verify Available Models</strong><br>
-                                    You may only have access to specific models. Try these official models:
-                                </p>
-                                <ul style="margin-left: 20px; margin-bottom: 15px;">
-                                    <li><code>deepseek-chat</code> - General chat model (most likely available)</li>
-                                    <li><code>deepseek-coder</code> - Coding model (can handle math too)</li>
-                                </ul>
-                                
-                                <p style="margin-bottom: 15px;">
-                                    <strong>3. Subscription Status</strong><br>
-                                    Some models may require a paid subscription or specific access.
-                                </p>
-                                
-                                <div style="background-color: rgba(76, 201, 240, 0.1); padding: 10px; border-radius: 6px; margin-top: 15px;">
-                                    <i class="fas fa-info-circle" style="color: var(--primary-color);"></i> 
-                                    This application now attempts to automatically detect which models are available in your account.
-                                    If none work, try selecting a non-DeepSeek model from the dropdown instead.
-                                </div>
+                            ${errorGuidance}
+                            <div style="background-color: rgba(76, 201, 240, 0.1); padding: 10px; border-radius: 6px; margin-top: 15px;">
+                                <i class="fas fa-info-circle" style="color: var(--primary-color);"></i> 
+                                This application attempts to automatically detect which models are available in your account.
+                                If you're having issues with DeepSeek models, try selecting a non-DeepSeek model from the dropdown instead.
                             </div>
                         `;
                     }
