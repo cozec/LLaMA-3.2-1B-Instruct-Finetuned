@@ -2,6 +2,11 @@ from http.server import BaseHTTPRequestHandler
 import json
 import os
 import requests
+import logging
+
+# Setup basic logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Instead of loading the model directly, we'll point to an external API
 # You'll need to host the model inference elsewhere
@@ -16,81 +21,86 @@ def generate_response(prompt):
         API_URL = os.environ.get("MODEL_API_URL", "")
         
         if not API_URL:
-            return "Error: MODEL_API_URL environment variable not set"
+            error_msg = "Error: MODEL_API_URL environment variable not set. Please set it in Vercel project settings."
+            logger.error(error_msg)
+            return error_msg
+        
+        logger.info(f"Sending request to model API: {API_URL}")
         
         # Make a request to your model API
         response = requests.post(
             API_URL,
-            json={"prompt": prompt}
+            json={"prompt": prompt},
+            headers={"Content-Type": "application/json"},
+            timeout=60  # 60 second timeout
         )
         
         if response.status_code == 200:
+            logger.info("Received successful response from model API")
             return response.json().get("response", "")
         else:
-            return f"Error: API request failed with status code {response.status_code}"
+            error_msg = f"Error: API request failed with status code {response.status_code}. Response: {response.text[:200]}"
+            logger.error(error_msg)
+            return error_msg
     
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Error connecting to model API at {API_URL}: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
     except Exception as e:
-        return f"Error generating response: {str(e)}"
+        error_msg = f"Unexpected error generating response: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
 
-# Vercel serverless function handler
+# Handler for Vercel Python Serverless Functions
 def handler(request):
-    # Parse the incoming request
-    if request.method == "POST":
-        try:
-            # Parse the request body
-            body = json.loads(request.body)
-            prompt = body.get("prompt", "")
-            
-            if not prompt:
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"error": "No prompt provided"}),
-                    "headers": {
-                        "Content-Type": "application/json",
-                        "Access-Control-Allow-Origin": "*"
-                    }
-                }
-            
-            # Call the external API for the model inference
-            response = generate_response(prompt)
-            
+    """
+    Main handler for Vercel Python serverless functions
+    This follows Vercel's expected format for Python handlers
+    """
+    try:
+        # Get request body
+        body = request.get('body', '{}')
+        if isinstance(body, bytes):
+            body = body.decode('utf-8')
+        
+        # Parse JSON
+        data = json.loads(body)
+        prompt = data.get('prompt', '')
+        
+        if not prompt:
+            logger.warning("No prompt provided in request")
             return {
-                "statusCode": 200,
-                "body": json.dumps({"response": response}),
+                "statusCode": 400,
                 "headers": {
                     "Content-Type": "application/json",
                     "Access-Control-Allow-Origin": "*"
-                }
+                },
+                "body": json.dumps({"error": "No prompt provided"})
             }
         
-        except Exception as e:
-            return {
-                "statusCode": 500,
-                "body": json.dumps({"error": str(e)}),
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*"
-                }
-            }
-    
-    # Handle OPTIONS request for CORS
-    elif request.method == "OPTIONS":
+        logger.info(f"Processing prompt: {prompt[:50]}...")
+        
+        # Call the model API
+        response = generate_response(prompt)
+        
         return {
             "statusCode": 200,
             "headers": {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Content-Type",
-                "Access-Control-Allow-Methods": "POST, OPTIONS"
-            }
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
+            "body": json.dumps({"response": response})
         }
-    
-    # Handle other HTTP methods
-    else:
+        
+    except Exception as e:
+        error_msg = f"Error in handler: {str(e)}"
+        logger.error(error_msg)
         return {
-            "statusCode": 405,
-            "body": json.dumps({"error": "Method not allowed"}),
+            "statusCode": 500,
             "headers": {
                 "Content-Type": "application/json",
                 "Access-Control-Allow-Origin": "*"
-            }
+            },
+            "body": json.dumps({"error": error_msg})
         }

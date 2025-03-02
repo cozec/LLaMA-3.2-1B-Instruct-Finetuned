@@ -2,12 +2,18 @@
     "version": 2,
     "builds": [
         { "src": "index.html", "use": "@vercel/static" },
-        { "src": "api/*.py", "use": "@vercel/python" }
+        { "src": "api/generate.py", "use": "@vercel/python" }
     ],
     "routes": [
-        { "src": "/api/(.*)", "dest": "/api/$1" },
+        { "src": "/api/generate", "dest": "/api/generate.py" },
         { "src": "/(.*)", "dest": "/index.html" }
     ],
+    "functions": {
+        "api/generate.py": {
+            "memory": 512,
+            "maxDuration": 10
+        }
+    },
     "env": {
         "MODEL_API_URL": ""
     }
