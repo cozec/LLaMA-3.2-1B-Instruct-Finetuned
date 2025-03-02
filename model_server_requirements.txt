@@ -1,0 +1,8 @@
+torch==2.6.0
+transformers==4.43.0
+accelerate==1.4.0
+einops==0.8.1
+safetensors==0.5.3
+flask==3.0.2
+flask-cors==4.0.0
+gunicorn==22.0.0 

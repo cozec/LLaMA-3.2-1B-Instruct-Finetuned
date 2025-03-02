@@ -1,39 +1,96 @@
+from http.server import BaseHTTPRequestHandler
 import json
-import traceback
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import os
+import requests
 
-# Initialize model and tokenizer
-MODEL_NAME = "ai-nexuz/llama-3.2-1b-instruct-fine-tuned"
-tokenizer = None
-model = None
-
-def initialize_model():
-    global tokenizer, model
-    if tokenizer is None:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    
-    if model is None:
-        # Check if CUDA is available
-        if torch.cuda.is_available():
-            device_map = "auto"  # Let the library decide the optimal device mapping
-        else:
-            device_map = "auto"  # Will default to CPU when CUDA is not available
-            
-        model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, device_map=device_map)
+# Instead of loading the model directly, we'll point to an external API
+# You'll need to host the model inference elsewhere
 
 def generate_response(prompt):
-    # Initialize model if not already initialized
-    initialize_model()
+    """
+    This is a placeholder function that should be implemented to call your actual model endpoint.
+    For example, you might host the model on Hugging Face Inference API, your own server, etc.
+    """
+    try:
+        # Replace with your actual model API endpoint
+        API_URL = os.environ.get("MODEL_API_URL", "")
+        
+        if not API_URL:
+            return "Error: MODEL_API_URL environment variable not set"
+        
+        # Make a request to your model API
+        response = requests.post(
+            API_URL,
+            json={"prompt": prompt}
+        )
+        
+        if response.status_code == 200:
+            return response.json().get("response", "")
+        else:
+            return f"Error: API request failed with status code {response.status_code}"
     
-    # Process the prompt
-    inputs = tokenizer(prompt, return_tensors="pt")
+    except Exception as e:
+        return f"Error generating response: {str(e)}"
+
+# Vercel serverless function handler
+def handler(request):
+    # Parse the incoming request
+    if request.method == "POST":
+        try:
+            # Parse the request body
+            body = json.loads(request.body)
+            prompt = body.get("prompt", "")
+            
+            if not prompt:
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps({"error": "No prompt provided"}),
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*"
+                    }
+                }
+            
+            # Call the external API for the model inference
+            response = generate_response(prompt)
+            
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"response": response}),
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
+            }
+        
+        except Exception as e:
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": str(e)}),
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
+            }
     
-    # Move inputs to the same device as the model
-    if hasattr(model, 'device'):
-        inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    # Handle OPTIONS request for CORS
+    elif request.method == "OPTIONS":
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "POST, OPTIONS"
+            }
+        }
     
-    # Generate response
-    outputs = model.generate(**inputs, max_length=600)
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return response
+    # Handle other HTTP methods
+    else:
+        return {
+            "statusCode": 405,
+            "body": json.dumps({"error": "Method not allowed"}),
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            }
+        }

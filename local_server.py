@@ -3,9 +3,13 @@ import http.server
 import socketserver
 import json
 import sys
-from api.generate import generate_response
+import os
+import requests
 
 PORT = 8000
+
+# Get the model API URL from environment variable
+MODEL_API_URL = os.environ.get("MODEL_API_URL", "http://localhost:5000/generate")
 
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
@@ -23,9 +27,28 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
                     return
                 
                 print(f"Processing prompt: {prompt}")
-                response = generate_response(prompt)
                 
-                self._send_json_response(200, {'response': response})
+                # Forward the request to the model server
+                try:
+                    response = requests.post(
+                        MODEL_API_URL,
+                        json={"prompt": prompt},
+                        headers={"Content-Type": "application/json"}
+                    )
+                    
+                    if response.status_code == 200:
+                        model_response = response.json()
+                        self._send_json_response(200, model_response)
+                    else:
+                        error_message = f"Model API returned status code {response.status_code}"
+                        print(error_message)
+                        self._send_json_response(500, {'error': error_message})
+                
+                except requests.RequestException as e:
+                    error_message = f"Error connecting to model API: {str(e)}"
+                    print(error_message)
+                    self._send_json_response(500, {'error': error_message})
+                
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -44,6 +67,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
 def run_server():
     with socketserver.TCPServer(("", PORT), RequestHandler) as httpd:
         print(f"Serving at http://localhost:{PORT}")
+        print(f"Using model API at: {MODEL_API_URL}")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
@@ -51,4 +75,7 @@ def run_server():
             sys.exit(0)
 
 if __name__ == "__main__":
+    if not MODEL_API_URL:
+        print("WARNING: MODEL_API_URL environment variable not set!")
+        print("Set it with: export MODEL_API_URL=http://your-model-server:port/generate")
     run_server() 

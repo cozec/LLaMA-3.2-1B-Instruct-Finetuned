@@ -14,10 +14,10 @@ else:
     device_map = "auto"  # Will default to CPU when CUDA is not available
 
 try:
-    model = AutoModelForCausalLM.from_pretrained(model_name, device_map=device_map)
+    model = AutoModelForCausalLM.from_pretrained(model_name, device_map='mps')
     
     # prompt = "Solve this equation: 2x + 3 = 7. Find x."
-    prompt = "A photographer wants to create a rectangular frame for a photo. The frame's width is 2 inches more than its height. If the area of the frame (including the empty space) is 48 square inches, what are the dimensions of the frame?"
+    prompt = "The length of a rectangular frame is 5 inches more than twice its width. If the area of the frame is 84 square inches, find its dimensions."
     
     print(f"\nProcessing prompt: {prompt}")
     
@@ -26,7 +26,7 @@ try:
     if hasattr(model, 'device'):
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
     
-    outputs = model.generate(**inputs, max_length=600)
+    outputs = model.generate(**inputs, max_length=1000)
     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
     
     print("\nResponse:")
