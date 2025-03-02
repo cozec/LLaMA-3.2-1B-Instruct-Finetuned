@@ -22,8 +22,12 @@ const CONFIG = {
             name: "GPT-2 (Always available)"
         },
         {
-            id: "deepseek-ai/deepseek-math-7b-rl",
-            name: "DeepSeek Math 7B (Specialized)"
+            id: "deepseek-chat",
+            name: "DeepSeek Chat - Official API Model"
+        },
+        {
+            id: "deepseek-coder",
+            name: "DeepSeek Coder - Math & Code Problems"
         },
         {
             id: "google/gemma-7b-it",
@@ -44,14 +48,6 @@ const CONFIG = {
         {
             id: "TIGER-Lab/MAmmoTH-7B",
             name: "MAmmoTH 7B (Math Assistant)"
-        },
-        {
-            id: "deepseek-coder-7b-instruct",
-            name: "DeepSeek Coder 7B (Math & Coding)"
-        },
-        {
-            id: "deepseek-llm-7b-chat",
-            name: "DeepSeek LLM 7B (General Chat)"
         },
         {
             id: "deepseek-math-7b-instruct",

@@ -644,30 +644,27 @@
                         console.log('--- DeepSeek API Debug Information ---');
                         console.log(`Original model ID: ${modelId}`);
                         
-                        // Try different model formats for DeepSeek
+                        // Try different model formats for DeepSeek - USING OFFICIAL NAMES
                         let modelAttempts = [
-                            // Direct model IDs (most likely to work)
-                            'deepseek-math-7b-instruct',
-                            'deepseek-coder-7b-instruct',
-                            'deepseek-llm-7b-chat'
+                            // Official DeepSeek API model IDs
+                            'deepseek-chat', 
+                            'deepseek-coder'
                         ];
                         
-                        // Extract the specific DeepSeek model from the ID
-                        // Format is typically 'deepseek-ai/model-name'
-                        if (modelId.includes('/')) {
-                            // Extract the part after the slash
-                            const modelNamePart = modelId.split('/')[1];
-                            console.log(`Extracted name part: ${modelNamePart}`);
-                            
-                            // Add to the beginning of our attempts list (try these first)
-                            modelAttempts.unshift(modelNamePart);
-                            
-                            // Don't use the full model ID including organization
-                            // console.log('Note: Not trying the full model ID with organization prefix as DeepSeek API usually rejects these');
-                        } else {
-                            // If no slash, use the original ID
-                            console.log(`No organization prefix detected, using as is: ${modelId}`);
-                            modelAttempts.unshift(modelId);
+                        // If the modelId exactly matches one of our options, prioritize it
+                        if (modelId === 'deepseek-chat' || modelId === 'deepseek-coder') {
+                            // If the user explicitly selected one of these, prioritize it
+                            modelAttempts = [modelId];
+                            console.log(`Using exactly selected model: ${modelId}`);
+                        } else if (modelId.includes('deepseek-math')) {
+                            // Check if we're trying to use a DeepSeek math model (which might not be available)
+                            console.log(`Trying math model, but falling back to general models`);
+                            responseOutput.innerHTML = `
+                                <div style="color: var(--warning-color); margin-bottom: 15px;">
+                                    <div class="spinner"></div> Note: DeepSeek Math models may require special access. 
+                                    Will try using DeepSeek's general models instead.
+                                </div>
+                            `;
                         }
                         
                         console.log(`Will try these DeepSeek models in order: ${modelAttempts.join(', ')}`);
@@ -678,6 +675,55 @@
                         let lastError = null;
                         let attemptCount = 0;
                         
+                        // First, check what models are available (if possible)
+                        try {
+                            // Show checking available models message
+                            responseOutput.innerHTML = `
+                                <div style="color: var(--primary-color); margin-bottom: 15px;">
+                                    <div class="spinner"></div> Checking available DeepSeek models...
+                                </div>
+                            `;
+                            
+                            // Request to list available models
+                            const modelsResponse = await fetch('https://api.deepseek.com/v1/models', {
+                                method: 'GET',
+                                headers: {
+                                    'Authorization': `Bearer ${deepseekToken}`,
+                                    'Content-Type': 'application/json',
+                                }
+                            });
+                            
+                            if (modelsResponse.ok) {
+                                const modelsData = await modelsResponse.json();
+                                console.log('Available DeepSeek models:', modelsData);
+                                
+                                if (modelsData && modelsData.data && Array.isArray(modelsData.data)) {
+                                    // Extract available model IDs
+                                    const availableModels = modelsData.data.map(model => model.id);
+                                    console.log('Available model IDs:', availableModels);
+                                    
+                                    if (availableModels.length > 0) {
+                                        // Update our attempts list to prioritize available models
+                                        modelAttempts = availableModels;
+                                        console.log(`Updated to use available models: ${modelAttempts.join(', ')}`);
+                                        
+                                        // Show the available models to the user
+                                        responseOutput.innerHTML = `
+                                            <div style="color: var(--success-color); margin-bottom: 15px;">
+                                                <i class="fas fa-check-circle"></i> Found ${availableModels.length} available models in your account.
+                                            </div>
+                                            <div style="margin-bottom: 15px;">Will try: ${availableModels.join(', ')}</div>
+                                        `;
+                                    }
+                                }
+                            } else {
+                                console.log('Could not fetch available models:', await modelsResponse.text());
+                            }
+                        } catch (modelsError) {
+                            console.error('Error fetching available models:', modelsError);
+                        }
+                        
+                        // Now try the models
                         for (const deepseekModelId of modelAttempts) {
                             if (success) continue;
                             attemptCount++;
@@ -820,30 +866,42 @@
                     // Add a special case for DeepSeek API errors
                     if (error.message.includes('DeepSeek API error')) {
                         const errorDetails = error.message.includes('Model Not Exist') ? 
-                            'The specified model does not exist on DeepSeek\'s platform.' : 
+                            'The specified model does not exist on DeepSeek\'s platform or is not available in your account.' : 
                             error.message;
                             
                         responseOutput.innerHTML = `
                             <div style="color: var(--error-color); margin-bottom: 15px;">
                                 <i class="fas fa-exclamation-circle"></i> DeepSeek API Error: ${errorDetails}
                             </div>
-                            <p>Possible issues:</p>
-                            <ul style="margin-left: 20px; margin-top: 10px;">
-                                <li>Your DeepSeek API token may not be valid</li>
-                                <li>The DeepSeek model ID "${modelId}" is not correct</li>
-                                <li>You may need to subscribe to this model on DeepSeek's platform</li>
-                            </ul>
                             
-                            <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: var(--border-radius); border-left: 4px solid var(--warning-color);">
-                                <h4 style="margin-top: 0;">Available DeepSeek Models:</h4>
-                                <p>Based on DeepSeek documentation, try these models:</p>
-                                <ul style="margin-left: 20px; margin-top: 10px;">
-                                    <li><code>deepseek-coder-7b-instruct</code> - Good for general coding and math</li>
-                                    <li><code>deepseek-llm-7b-chat</code> - General purpose chat model</li>
-                                    <li><code>deepseek-math-7b-instruct</code> - Specialized for math problems</li>
-                                    <li><code>deepseek-math-7b-base</code> - Base math model</li>
+                            <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: var(--border-radius); border-left: 4px solid var(--primary-color);">
+                                <h4 style="margin-top: 0;">Troubleshooting DeepSeek API Issues</h4>
+                                
+                                <p style="margin-top: 10px; margin-bottom: 15px;">
+                                    <strong>1. Check Your Account Access</strong><br>
+                                    Make sure you have an active DeepSeek account and your API token is valid.
+                                    <a href="https://platform.deepseek.com/" target="_blank" style="color: var(--primary-color);">Visit DeepSeek Platform <i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i></a>
+                                </p>
+                                
+                                <p style="margin-bottom: 15px;">
+                                    <strong>2. Verify Available Models</strong><br>
+                                    You may only have access to specific models. Try these official models:
+                                </p>
+                                <ul style="margin-left: 20px; margin-bottom: 15px;">
+                                    <li><code>deepseek-chat</code> - General chat model (most likely available)</li>
+                                    <li><code>deepseek-coder</code> - Coding model (can handle math too)</li>
                                 </ul>
-                                <p style="margin-top: 10px;">Make sure you have access to these models in your DeepSeek account.</p>
+                                
+                                <p style="margin-bottom: 15px;">
+                                    <strong>3. Subscription Status</strong><br>
+                                    Some models may require a paid subscription or specific access.
+                                </p>
+                                
+                                <div style="background-color: rgba(76, 201, 240, 0.1); padding: 10px; border-radius: 6px; margin-top: 15px;">
+                                    <i class="fas fa-info-circle" style="color: var(--primary-color);"></i> 
+                                    This application now attempts to automatically detect which models are available in your account.
+                                    If none work, try selecting a non-DeepSeek model from the dropdown instead.
+                                </div>
                             </div>
                         `;
                     }
