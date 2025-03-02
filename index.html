@@ -159,6 +159,12 @@
         </div>
         
         <div class="form-group">
+            <label for="hf-api-token">API Token:</label>
+            <input type="password" id="hf-api-token" class="api-input" placeholder="Enter your Hugging Face API token">
+            <button id="save-hf-token">Save Token</button>
+        </div>
+        
+        <div class="form-group">
             <label for="hf-model-id">Model:</label>
             <select id="hf-model-id" class="model-dropdown">
                 <!-- Models will be populated from config.js -->
@@ -202,6 +208,8 @@
 
         // Initialize the application after configuration is loaded
         function initializeApp() {
+            const hfApiTokenInput = document.getElementById('hf-api-token');
+            const saveHfTokenButton = document.getElementById('save-hf-token');
             const hfModelIdInput = document.getElementById('hf-model-id');
             const promptInput = document.getElementById('prompt-input');
             const submitButton = document.getElementById('submit-btn');
@@ -214,6 +222,23 @@
                 console.error('CONFIG object is not available');
                 return;
             }
+
+            // Load saved Hugging Face API token from local storage
+            const savedHfToken = localStorage.getItem('hfApiToken');
+            if (savedHfToken) {
+                hfApiTokenInput.value = savedHfToken;
+            }
+            
+            // Save Hugging Face API token to local storage
+            saveHfTokenButton.addEventListener('click', function() {
+                const token = hfApiTokenInput.value.trim();
+                if (token) {
+                    localStorage.setItem('hfApiToken', token);
+                    alert('API token saved!');
+                } else {
+                    alert('Please enter a valid API token');
+                }
+            });
 
             console.log('Populating dropdown with models:', CONFIG.MODELS);
             
@@ -248,7 +273,7 @@
             
             async function performRequest(isRetry = false, retryCount = 0) {
                 const prompt = promptInput.value.trim();
-                const token = CONFIG.API_TOKEN;
+                const token = hfApiTokenInput.value.trim();
                 const modelId = hfModelIdInput.value.trim();
                 
                 if (!prompt) {
@@ -256,8 +281,8 @@
                     return;
                 }
 
-                if (!token || token === "YOUR_HUGGING_FACE_API_TOKEN_HERE") {
-                    alert('Please set your API token in the config.js file');
+                if (!token) {
+                    alert('Please enter your Hugging Face API token and click Save Token');
                     return;
                 }
                 
@@ -342,7 +367,7 @@
                     } else if (error.message.includes('API token')) {
                         responseOutput.innerHTML = `
                             <p>Error with API token: ${error.message}</p>
-                            <p>Please check your API token in the config.js file.</p>
+                            <p>Please check your API token in the input field above.</p>
                         `;
                     } else {
                         responseOutput.innerHTML = `
@@ -350,7 +375,7 @@
                             <p>If this is a "model does not exist" error, please:</p>
                             <ul>
                                 <li>Select a different model from the dropdown menu</li>
-                                <li>Update the available models in the config.js file</li>
+                                <li>Make sure you have the correct access permissions for the selected model</li>
                             </ul>
                         `;
                     }
