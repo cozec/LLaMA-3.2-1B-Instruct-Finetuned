@@ -152,26 +152,16 @@
     
     <div class="container">
         <h2>Hugging Face Inference API</h2>
-        <p>Use the Hugging Face Inference API to access the model:</p>
         
         <div class="info-alert">
             <strong>Note:</strong> Free-tier API usage may experience timeouts during high demand. 
-            If you receive a "Model too busy" error, please try again in a few minutes or try one of the alternative models from the dropdown below.
-        </div>
-        
-        <div class="form-group">
-            <label for="hf-api-token">API Token:</label>
-            <input type="password" id="hf-api-token" class="api-input" placeholder="Enter your Hugging Face API token">
-            <button id="save-hf-token">Save Token</button>
+            If you receive a "Model too busy" error, please try again in a few minutes or try a different model from the dropdown below.
         </div>
         
         <div class="form-group">
             <label for="hf-model-id">Model:</label>
             <select id="hf-model-id" class="model-dropdown">
-                <option value="ai-nexuz/llama-3.2-1b-instruct-fine-tuned">ai-nexuz/llama-3.2-1b-instruct-fine-tuned (Default)</option>
-                <option value="meta-llama/Meta-Llama-3-8B-Instruct">meta-llama/Meta-Llama-3-8B-Instruct (Larger, may be more available)</option>
-                <option value="microsoft/phi-2">microsoft/phi-2 (Smaller, faster response)</option>
-                <option value="huggyllama/llama-7b">huggyllama/llama-7b (Alternative for math)</option>
+                <!-- Models will be populated from config.js -->
             </select>
         </div>
         
@@ -186,31 +176,26 @@
         </div>
     </div>
 
+    <!-- Include configuration file -->
+    <script src="config.js"></script>
+    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const hfApiTokenInput = document.getElementById('hf-api-token');
-            const saveHfTokenButton = document.getElementById('save-hf-token');
             const hfModelIdInput = document.getElementById('hf-model-id');
             const promptInput = document.getElementById('prompt-input');
             const submitButton = document.getElementById('submit-btn');
             const responseOutput = document.getElementById('response-output');
             const loadingIndicator = document.getElementById('loading-indicator');
 
-            // Load saved Hugging Face API token from local storage
-            const savedHfToken = localStorage.getItem('hfApiToken');
-            if (savedHfToken) {
-                hfApiTokenInput.value = savedHfToken;
-            }
-            
-            // Save Hugging Face API token to local storage
-            saveHfTokenButton.addEventListener('click', function() {
-                const token = hfApiTokenInput.value.trim();
-                if (token) {
-                    localStorage.setItem('hfApiToken', token);
-                    alert('API token saved!');
-                } else {
-                    alert('Please enter a valid API token');
+            // Populate model dropdown from configuration
+            CONFIG.MODELS.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = model.name;
+                if (model.id === CONFIG.DEFAULT_MODEL) {
+                    option.selected = true;
                 }
+                hfModelIdInput.appendChild(option);
             });
             
             // Load saved model from local storage if available
@@ -233,7 +218,7 @@
             
             async function performRequest(isRetry = false, retryCount = 0) {
                 const prompt = promptInput.value.trim();
-                const token = hfApiTokenInput.value.trim();
+                const token = CONFIG.API_TOKEN;
                 const modelId = hfModelIdInput.value.trim();
                 
                 if (!prompt) {
@@ -241,8 +226,8 @@
                     return;
                 }
 
-                if (!token) {
-                    alert('Please enter your Hugging Face API token and click Save Token');
+                if (!token || token === "YOUR_HUGGING_FACE_API_TOKEN_HERE") {
+                    alert('Please set your API token in the config.js file');
                     return;
                 }
                 
@@ -324,13 +309,18 @@
                                 </ul>
                             `;
                         }
+                    } else if (error.message.includes('API token')) {
+                        responseOutput.innerHTML = `
+                            <p>Error with API token: ${error.message}</p>
+                            <p>Please check your API token in the config.js file.</p>
+                        `;
                     } else {
                         responseOutput.innerHTML = `
                             <p>Error generating response: ${error.message}</p>
                             <p>If this is a "model does not exist" error, please:</p>
                             <ul>
                                 <li>Select a different model from the dropdown menu</li>
-                                <li>Verify your API token has access to the selected model</li>
+                                <li>Update the available models in the config.js file</li>
                             </ul>
                         `;
                     }

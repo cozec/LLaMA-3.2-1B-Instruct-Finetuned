@@ -48,10 +48,34 @@ Alternatively, you can use a service like Hugging Face Inference API to host the
 ## Usage Instructions
 
 1. Access the web interface
-2. Enter the URL of your model server in the "Model Server URL" field (e.g., `http://your-server.com:5000/generate`)
-3. Click "Save" to store the URL in your browser
-4. Enter your question in the prompt field
-5. Click "Get Answer" to get a response from the model
+2. Edit the `config.js` file to set your Hugging Face API token
+3. Enter your question in the prompt field
+4. Click "Get Answer" to get a response from the model
+
+### Configuration
+
+The project now uses a configuration file (`config.js`) to store your API token and model options:
+
+```javascript
+// config.js
+const CONFIG = {
+    // Replace with your actual Hugging Face API token
+    API_TOKEN: "YOUR_HUGGING_FACE_API_TOKEN_HERE",
+    
+    // Default model to use
+    DEFAULT_MODEL: "ai-nexuz/llama-3.2-1b-instruct-fine-tuned",
+    
+    // Available models - you can add/remove models as needed
+    MODELS: [
+        // ...model definitions...
+    ]
+};
+```
+
+To configure:
+1. Edit `config.js` with a text editor
+2. Replace `YOUR_HUGGING_FACE_API_TOKEN_HERE` with your actual Hugging Face API token
+3. Save the file and refresh your browser
 
 ## Local Development
 
