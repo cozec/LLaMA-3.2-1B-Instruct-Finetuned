@@ -127,26 +127,23 @@
             background-color: #8e44ad;
         }
         
-        .model-suggestions {
-            margin-top: 20px;
+        .model-dropdown {
+            width: 100%;
             padding: 10px;
-            background-color: #f0f0f0;
-            border-radius: 4px;
-        }
-        
-        .model-option {
-            display: block;
-            padding: 8px;
-            margin: 5px 0;
-            background-color: #fff;
             border: 1px solid #ddd;
             border-radius: 4px;
+            font-size: 15px;
+            background-color: #fff;
+            margin-bottom: 15px;
             cursor: pointer;
-            transition: background-color 0.2s;
         }
         
-        .model-option:hover {
-            background-color: #f8f8f8;
+        .model-dropdown option {
+            padding: 10px;
+        }
+        
+        .model-suggestions {
+            display: none;
         }
     </style>
 </head>
@@ -159,7 +156,7 @@
         
         <div class="info-alert">
             <strong>Note:</strong> Free-tier API usage may experience timeouts during high demand. 
-            If you receive a "Model too busy" error, please try again in a few minutes or try one of the alternative models below.
+            If you receive a "Model too busy" error, please try again in a few minutes or try one of the alternative models from the dropdown below.
         </div>
         
         <div class="form-group">
@@ -169,16 +166,13 @@
         </div>
         
         <div class="form-group">
-            <label for="hf-model-id">Model ID:</label>
-            <input type="text" id="hf-model-id" class="api-input" value="ai-nexuz/llama-3.2-1b-instruct-fine-tuned" placeholder="Model ID (e.g., ai-nexuz/llama-3.2-1b-instruct-fine-tuned)">
-        </div>
-        
-        <div class="model-suggestions">
-            <h3>Alternative Models:</h3>
-            <p>If the primary model is busy, you can try one of these alternatives:</p>
-            <div class="model-option" data-model="meta-llama/Meta-Llama-3-8B-Instruct">meta-llama/Meta-Llama-3-8B-Instruct (larger, but may be more available)</div>
-            <div class="model-option" data-model="microsoft/phi-2">microsoft/phi-2 (smaller, faster response)</div>
-            <div class="model-option" data-model="Felladrin/Mathema-7B">Felladrin/Mathema-7B (specialized for math)</div>
+            <label for="hf-model-id">Model:</label>
+            <select id="hf-model-id" class="model-dropdown">
+                <option value="ai-nexuz/llama-3.2-1b-instruct-fine-tuned">ai-nexuz/llama-3.2-1b-instruct-fine-tuned (Default)</option>
+                <option value="meta-llama/Meta-Llama-3-8B-Instruct">meta-llama/Meta-Llama-3-8B-Instruct (Larger, may be more available)</option>
+                <option value="microsoft/phi-2">microsoft/phi-2 (Smaller, faster response)</option>
+                <option value="Felladrin/Mathema-7B">Felladrin/Mathema-7B (Specialized for math)</option>
+            </select>
         </div>
         
         <h2>Ask a question:</h2>
@@ -219,14 +213,17 @@
                 }
             });
             
-            // Set up model selection from alternatives
-            const modelOptions = document.querySelectorAll('.model-option');
-            modelOptions.forEach(option => {
-                option.addEventListener('click', function() {
-                    const modelId = this.getAttribute('data-model');
-                    hfModelIdInput.value = modelId;
-                    alert(`Model changed to: ${modelId}`);
-                });
+            // Load saved model from local storage if available
+            const savedModel = localStorage.getItem('selectedModel');
+            if (savedModel) {
+                hfModelIdInput.value = savedModel;
+            }
+            
+            // Save selected model when it changes
+            hfModelIdInput.addEventListener('change', function() {
+                const selectedModel = hfModelIdInput.value;
+                localStorage.setItem('selectedModel', selectedModel);
+                console.log(`Model changed to: ${selectedModel}`);
             });
             
             // Handle submission with retry capability
@@ -309,7 +306,7 @@
                             responseOutput.innerHTML = `
                                 Error: The model is currently busy. 
                                 <button id="retry-btn" class="retry-button">Retry Now</button> or wait a few minutes and try again.
-                                <p>You can also try one of the alternative models above.</p>
+                                <p>You can also try selecting a different model from the dropdown above.</p>
                             `;
                             
                             // Set up retry button
@@ -322,7 +319,7 @@
                                 <p>Suggestions:</p>
                                 <ul>
                                     <li>Wait a few minutes before trying again</li>
-                                    <li>Try one of the alternative models above</li>
+                                    <li>Select a different model from the dropdown menu</li>
                                     <li>Try during off-peak hours</li>
                                 </ul>
                             `;
