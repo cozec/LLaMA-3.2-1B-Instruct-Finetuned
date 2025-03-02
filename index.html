@@ -379,6 +379,12 @@
             <button id="save-deepseek-token"><i class="fas fa-save"></i> Save Token</button>
         </div>
         
+        <div class="form-group" id="openai-token-group" style="display: none;">
+            <label for="openai-api-token"><i class="fas fa-key"></i> OpenAI API Token:</label>
+            <input type="password" id="openai-api-token" class="api-input" placeholder="Enter your OpenAI API token">
+            <button id="save-openai-token"><i class="fas fa-save"></i> Save Token</button>
+        </div>
+        
         <div class="form-group">
             <label for="hf-model-id"><i class="fas fa-robot"></i> Choose Model:</label>
             <select id="hf-model-id" class="model-dropdown">
@@ -444,6 +450,9 @@
             const deepseekTokenGroup = document.getElementById('deepseek-token-group');
             const deepseekApiTokenInput = document.getElementById('deepseek-api-token');
             const saveDeepseekTokenButton = document.getElementById('save-deepseek-token');
+            const openaiTokenGroup = document.getElementById('openai-token-group');
+            const openaiApiTokenInput = document.getElementById('openai-api-token');
+            const saveOpenaiTokenButton = document.getElementById('save-openai-token');
 
             // Verify the CONFIG object is available
             if (typeof CONFIG === 'undefined' || !CONFIG) {
@@ -462,6 +471,12 @@
             const savedDeepseekToken = localStorage.getItem('deepseekApiToken');
             if (savedDeepseekToken) {
                 deepseekApiTokenInput.value = savedDeepseekToken;
+            }
+            
+            // Load saved OpenAI API token from local storage
+            const savedOpenaiToken = localStorage.getItem('openaiApiToken');
+            if (savedOpenaiToken) {
+                openaiApiTokenInput.value = savedOpenaiToken;
             }
             
             // Save Hugging Face API token to local storage
@@ -540,6 +555,44 @@
                 }
             });
 
+            // Save OpenAI API token to local storage
+            saveOpenaiTokenButton.addEventListener('click', function() {
+                const token = openaiApiTokenInput.value.trim();
+                if (token) {
+                    localStorage.setItem('openaiApiToken', token);
+                    
+                    // Create notification element
+                    const notification = document.createElement('div');
+                    notification.style.position = 'fixed';
+                    notification.style.bottom = '20px';
+                    notification.style.right = '20px';
+                    notification.style.background = 'var(--success-color)';
+                    notification.style.color = 'white';
+                    notification.style.padding = '12px 20px';
+                    notification.style.borderRadius = 'var(--border-radius)';
+                    notification.style.boxShadow = 'var(--box-shadow)';
+                    notification.style.zIndex = '9999';
+                    notification.style.display = 'flex';
+                    notification.style.alignItems = 'center';
+                    notification.innerHTML = '<i class="fas fa-check-circle" style="margin-right: 8px;"></i> OpenAI API token saved successfully!';
+                    
+                    document.body.appendChild(notification);
+                    
+                    // Remove notification after 3 seconds
+                    setTimeout(() => {
+                        notification.style.opacity = '0';
+                        notification.style.transform = 'translateY(10px)';
+                        notification.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                        
+                        setTimeout(() => {
+                            document.body.removeChild(notification);
+                        }, 300);
+                    }, 3000);
+                } else {
+                    alert('Please enter a valid OpenAI API token');
+                }
+            });
+
             console.log('Populating dropdown with models:', CONFIG.MODELS);
             
             // Populate model dropdown from configuration
@@ -576,8 +629,13 @@
             function checkAndToggleDeepSeekTokenField(modelId) {
                 if (modelId.includes('deepseek')) {
                     deepseekTokenGroup.style.display = 'block';
+                    openaiTokenGroup.style.display = 'none';
+                } else if (modelId.includes('gpt-4') || modelId.includes('gpt-3.5')) {
+                    deepseekTokenGroup.style.display = 'none';
+                    openaiTokenGroup.style.display = 'block';
                 } else {
                     deepseekTokenGroup.style.display = 'none';
+                    openaiTokenGroup.style.display = 'none';
                 }
             }
             
@@ -598,8 +656,10 @@
                 const prompt = promptInput.value.trim();
                 const hfToken = hfApiTokenInput.value.trim();
                 const deepseekToken = deepseekApiTokenInput.value.trim();
+                const openaiToken = openaiApiTokenInput.value.trim();
                 const modelId = hfModelIdInput.value.trim();
                 const isDeepSeekModel = modelId.includes('deepseek');
+                const isOpenaiModel = modelId.includes('gpt-');
                 
                 if (!prompt) {
                     alert('Please enter a question');
@@ -610,6 +670,11 @@
                 if (isDeepSeekModel) {
                     if (!deepseekToken) {
                         alert('Please enter your DeepSeek API token and click Save Token');
+                        return;
+                    }
+                } else if (isOpenaiModel) {
+                    if (!openaiToken) {
+                        alert('Please enter your OpenAI API token and click Save Token');
                         return;
                     }
                 } else {
@@ -890,8 +955,51 @@
                             throw lastError;
                         }
                         
+                    } else if (isOpenaiModel) {
+                        // Use OpenAI API for OpenAI models
+                        const apiUrl = `https://api.openai.com/v1/chat/completions`;
+                        console.log(`Sending request to OpenAI: ${apiUrl}`);
+                        
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${openaiToken}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ 
+                                model: modelId,
+                                messages: [
+                                    {
+                                        role: "system",
+                                        content: "You are a helpful math assistant that solves problems step-by-step. Provide detailed explanations and show your work clearly."
+                                    },
+                                    {
+                                        role: "user",
+                                        content: prompt
+                                    }
+                                ],
+                                max_tokens: 500,
+                                temperature: 0.7
+                            }),
+                        });
+                        
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+                        }
+                        
+                        const data = await response.json();
+                        console.log('OpenAI response:', data);
+                        
+                        // Extract response text from OpenAI chat format
+                        if (data && data.choices && data.choices[0] && data.choices[0].message) {
+                            responseData = data.choices[0].message.content;
+                        } else {
+                            // If unknown format, stringify it
+                            responseData = JSON.stringify(data, null, 2);
+                        }
                     } else {
-                        // Use Hugging Face API for non-DeepSeek models
+                        // Use Hugging Face API for non-DeepSeek and non-OpenAI models
                         const apiUrl = `https://api-inference.huggingface.co/models/${modelId}`;
                         console.log(`Sending request to Hugging Face: ${apiUrl}`);
                         
@@ -1028,6 +1136,41 @@
                                 <i class="fas fa-info-circle" style="color: var(--primary-color);"></i> 
                                 This application attempts to automatically detect which models are available in your account.
                                 If you're having issues with DeepSeek models, try selecting a non-DeepSeek model from the dropdown instead.
+                            </div>
+                        `;
+                    }
+                    // Add a special case for OpenAI API errors
+                    else if (error.message.includes('OpenAI API error')) {
+                        let errorDetails = error.message;
+                        
+                        responseOutput.innerHTML = `
+                            <div style="color: var(--error-color); margin-bottom: 15px;">
+                                <i class="fas fa-exclamation-circle"></i> OpenAI API Error: ${errorDetails}
+                            </div>
+                            <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: var(--border-radius); border-left: 4px solid var(--primary-color);">
+                                <h4 style="margin-top: 0;">Troubleshooting OpenAI API Issues</h4>
+                                
+                                <p style="margin-top: 10px; margin-bottom: 15px;">
+                                    <strong>1. Check Your API Key</strong><br>
+                                    Make sure your OpenAI API key is valid and has not expired.
+                                    <a href="https://platform.openai.com/api-keys" target="_blank" style="color: var(--primary-color);">Visit OpenAI Platform <i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i></a>
+                                </p>
+                                
+                                <p style="margin-bottom: 15px;">
+                                    <strong>2. Verify Account Balance</strong><br>
+                                    Ensure your OpenAI account has available credits.
+                                    <a href="https://platform.openai.com/account/usage" target="_blank" style="color: var(--primary-color);">Check Usage <i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i></a>
+                                </p>
+                                
+                                <p style="margin-bottom: 15px;">
+                                    <strong>3. Model Access</strong><br>
+                                    Confirm you have access to GPT-4o Mini or the specific model you're trying to use.
+                                </p>
+                            </div>
+                            <div style="background-color: rgba(76, 201, 240, 0.1); padding: 10px; border-radius: 6px; margin-top: 15px;">
+                                <i class="fas fa-info-circle" style="color: var(--primary-color);"></i> 
+                                While troubleshooting OpenAI API issues, you can try one of the Hugging Face models from the dropdown instead.
+                                The "GPT-2 (Always available)" option works without special permissions.
                             </div>
                         `;
                     }

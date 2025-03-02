@@ -52,6 +52,10 @@ const CONFIG = {
         {
             id: "deepseek-math-7b-instruct",
             name: "DeepSeek Math 7B Instruct"
+        },
+        {
+            id: "gpt-4o-mini",
+            name: "GPT-4o Mini (OpenAI API - Coming Soon)"
         }
     ]
 }; 
