@@ -44,6 +44,18 @@ const CONFIG = {
         {
             id: "TIGER-Lab/MAmmoTH-7B",
             name: "MAmmoTH 7B (Math Assistant)"
+        },
+        {
+            id: "deepseek-coder-7b-instruct",
+            name: "DeepSeek Coder 7B (Math & Coding)"
+        },
+        {
+            id: "deepseek-llm-7b-chat",
+            name: "DeepSeek LLM 7B (General Chat)"
+        },
+        {
+            id: "deepseek-math-7b-instruct",
+            name: "DeepSeek Math 7B Instruct"
         }
     ]
 }; 

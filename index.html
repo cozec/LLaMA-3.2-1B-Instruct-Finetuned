@@ -640,41 +640,75 @@
                         // DeepSeek API endpoint
                         const deepseekApiUrl = 'https://api.deepseek.com/v1/chat/completions';
                         
+                        // Additional debugging information
+                        console.log('--- DeepSeek API Debug Information ---');
+                        console.log(`Original model ID: ${modelId}`);
+                        
                         // Try different model formats for DeepSeek
-                        let modelAttempts = [];
+                        let modelAttempts = [
+                            // Direct model IDs (most likely to work)
+                            'deepseek-math-7b-instruct',
+                            'deepseek-coder-7b-instruct',
+                            'deepseek-llm-7b-chat'
+                        ];
                         
                         // Extract the specific DeepSeek model from the ID
                         // Format is typically 'deepseek-ai/model-name'
                         if (modelId.includes('/')) {
-                            // Try both the part after the slash and the full ID
+                            // Extract the part after the slash
                             const modelNamePart = modelId.split('/')[1];
-                            modelAttempts = [modelNamePart, modelId];
+                            console.log(`Extracted name part: ${modelNamePart}`);
                             
-                            // If it's the deepseek-math model, also try other variants
-                            if (modelNamePart.includes('deepseek-math')) {
-                                modelAttempts.push('deepseek-math-7b-instruct');
-                                modelAttempts.push('deepseek-math-7b-base');
-                            }
+                            // Add to the beginning of our attempts list (try these first)
+                            modelAttempts.unshift(modelNamePart);
+                            
+                            // Don't use the full model ID including organization
+                            // console.log('Note: Not trying the full model ID with organization prefix as DeepSeek API usually rejects these');
                         } else {
-                            // If no slash, use the original ID and add a few variants
-                            modelAttempts = [modelId];
-                            if (modelId.includes('deepseek-math')) {
-                                modelAttempts.push('deepseek-math-7b-instruct');
-                                modelAttempts.push('deepseek-math-7b-base');
-                            }
+                            // If no slash, use the original ID
+                            console.log(`No organization prefix detected, using as is: ${modelId}`);
+                            modelAttempts.unshift(modelId);
                         }
                         
-                        console.log(`Will try these DeepSeek models: ${modelAttempts.join(', ')}`);
+                        console.log(`Will try these DeepSeek models in order: ${modelAttempts.join(', ')}`);
+                        console.log('--- End Debug Information ---');
                         
                         // Try each model format, stopping at the first one that works
                         let success = false;
                         let lastError = null;
+                        let attemptCount = 0;
                         
                         for (const deepseekModelId of modelAttempts) {
                             if (success) continue;
+                            attemptCount++;
                             
                             try {
-                                console.log(`Trying DeepSeek model: ${deepseekModelId}`);
+                                console.log(`Attempt ${attemptCount}: Trying DeepSeek model: "${deepseekModelId}"`);
+                                
+                                // Show which model is being tried in the UI
+                                responseOutput.innerHTML = `
+                                    <div style="color: var(--primary-color); margin-bottom: 15px;">
+                                        <div class="spinner"></div> Trying model: ${deepseekModelId} (attempt ${attemptCount}/${modelAttempts.length})
+                                    </div>
+                                `;
+                                
+                                const deepseekRequestBody = {
+                                    model: deepseekModelId,
+                                    messages: [
+                                        {
+                                            role: "system",
+                                            content: "You are a helpful math assistant that solves problems step-by-step. Provide detailed explanations and show your work clearly."
+                                        },
+                                        {
+                                            role: "user",
+                                            content: prompt
+                                        }
+                                    ],
+                                    temperature: 0.7,
+                                    max_tokens: 500
+                                };
+                                
+                                console.log('Request body:', JSON.stringify(deepseekRequestBody, null, 2));
                                 
                                 const deepseekResponse = await fetch(deepseekApiUrl, {
                                     method: 'POST',
@@ -682,32 +716,39 @@
                                         'Authorization': `Bearer ${deepseekToken}`,
                                         'Content-Type': 'application/json',
                                     },
-                                    body: JSON.stringify({
-                                        model: deepseekModelId,
-                                        messages: [
-                                            {
-                                                role: "system",
-                                                content: "You are a helpful math assistant that solves problems step-by-step. Provide detailed explanations and show your work clearly."
-                                            },
-                                            {
-                                                role: "user",
-                                                content: prompt
-                                            }
-                                        ],
-                                        temperature: 0.7,
-                                        max_tokens: 500
-                                    })
+                                    body: JSON.stringify(deepseekRequestBody)
                                 });
                                 
+                                const statusCode = deepseekResponse.status;
+                                console.log(`Response status: ${statusCode}`);
+                                
+                                // Get raw response text for debugging
+                                const responseText = await deepseekResponse.text();
+                                console.log(`Raw response: ${responseText}`);
+                                
                                 if (!deepseekResponse.ok) {
-                                    const errorText = await deepseekResponse.text();
-                                    lastError = new Error(`DeepSeek API error (${deepseekResponse.status}): ${errorText}`);
+                                    lastError = new Error(`DeepSeek API error (${statusCode}): ${responseText}`);
                                     console.error(`Failed with model ${deepseekModelId}:`, lastError);
                                     continue; // Try the next model
                                 }
                                 
-                                const deepseekData = await deepseekResponse.json();
-                                console.log(`Success with model ${deepseekModelId}:`, deepseekData);
+                                // Try to parse the response as JSON
+                                let deepseekData;
+                                try {
+                                    deepseekData = JSON.parse(responseText);
+                                    console.log(`Success with model ${deepseekModelId}:`, deepseekData);
+                                } catch (parseError) {
+                                    console.error('Failed to parse response as JSON:', parseError);
+                                    lastError = new Error(`Failed to parse DeepSeek API response: ${responseText}`);
+                                    continue; // Try the next model
+                                }
+                                
+                                // Verify we have the expected response structure
+                                if (!deepseekData || !deepseekData.choices || !deepseekData.choices[0] || !deepseekData.choices[0].message) {
+                                    console.error('Unexpected response format:', deepseekData);
+                                    lastError = new Error(`Unexpected DeepSeek API response format`);
+                                    continue; // Try the next model
+                                }
                                 
                                 // Extract response text from DeepSeek format
                                 responseData = deepseekData.choices[0].message.content;
