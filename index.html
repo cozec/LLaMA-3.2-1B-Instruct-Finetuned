@@ -200,21 +200,23 @@
             });
         }
 
-        // Try to load the local config first, then fall back to the public config
-        loadScript('config.local.js', 'config.js').catch(error => {
-            console.error('Error loading configuration:', error);
-            alert('Failed to load configuration. Please check your setup.');
-        });
-    </script>
-    
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        // Initialize the application after configuration is loaded
+        function initializeApp() {
             const hfModelIdInput = document.getElementById('hf-model-id');
             const promptInput = document.getElementById('prompt-input');
             const submitButton = document.getElementById('submit-btn');
             const responseOutput = document.getElementById('response-output');
             const loadingIndicator = document.getElementById('loading-indicator');
 
+            // Verify the CONFIG object is available
+            if (typeof CONFIG === 'undefined' || !CONFIG) {
+                alert('Error: Configuration not loaded properly. Please refresh the page.');
+                console.error('CONFIG object is not available');
+                return;
+            }
+
+            console.log('Populating dropdown with models:', CONFIG.MODELS);
+            
             // Populate model dropdown from configuration
             CONFIG.MODELS.forEach(model => {
                 const option = document.createElement('option');
@@ -358,7 +360,19 @@
                     loadingIndicator.style.display = 'none';
                 }
             }
-        });
+        }
+
+        // Try to load the local config first, then fall back to the public config
+        loadScript('config.local.js', 'config.js')
+            .then(() => {
+                console.log('Configuration loaded successfully');
+                // Wait a moment to ensure the CONFIG object is accessible
+                setTimeout(initializeApp, 100);
+            })
+            .catch(error => {
+                console.error('Error loading configuration:', error);
+                alert('Failed to load configuration. Please check your setup.');
+            });
     </script>
 </body>
 </html> 
