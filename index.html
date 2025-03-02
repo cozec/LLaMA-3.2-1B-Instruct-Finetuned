@@ -171,7 +171,7 @@
                 <option value="ai-nexuz/llama-3.2-1b-instruct-fine-tuned">ai-nexuz/llama-3.2-1b-instruct-fine-tuned (Default)</option>
                 <option value="meta-llama/Meta-Llama-3-8B-Instruct">meta-llama/Meta-Llama-3-8B-Instruct (Larger, may be more available)</option>
                 <option value="microsoft/phi-2">microsoft/phi-2 (Smaller, faster response)</option>
-                <option value="Felladrin/Mathema-7B">Felladrin/Mathema-7B (Specialized for math)</option>
+                <option value="huggyllama/llama-7b">huggyllama/llama-7b (Alternative for math)</option>
             </select>
         </div>
         
@@ -325,7 +325,14 @@
                             `;
                         }
                     } else {
-                        responseOutput.textContent = `Error generating response: ${error.message}`;
+                        responseOutput.innerHTML = `
+                            <p>Error generating response: ${error.message}</p>
+                            <p>If this is a "model does not exist" error, please:</p>
+                            <ul>
+                                <li>Select a different model from the dropdown menu</li>
+                                <li>Verify your API token has access to the selected model</li>
+                            </ul>
+                        `;
                     }
                 } finally {
                     // Re-enable input and hide loading
