@@ -17,6 +17,8 @@ This approach solves deployment issues with serverless platforms and provides mo
 - Clean, responsive user interface
 - Easy input of prompts and questions
 - Display of model-generated responses
+- Wide selection of math-specialized models
+- Configuration via dropdown menu
 - Configurable model server URL
 
 ## Deployment
@@ -70,6 +72,24 @@ const CONFIG = {
 ```
 
 The Hugging Face API token is stored securely in your browser's local storage after you enter it in the user interface.
+
+### Available Models
+
+The application provides access to several AI models specialized in mathematics:
+
+| Model | Description | Strengths |
+|-------|-------------|-----------|
+| LLaMA-3.2-1B | Default fine-tuned model | Balanced performance with small size |
+| Meta-Llama-3-8B | Larger base model | More comprehensive reasoning |
+| Microsoft Phi-2 | Smaller, faster model | Quick responses for simpler problems |
+| DeepSeek Math 7B | Specialized for mathematics | Advanced mathematical reasoning |
+| Gemma 7B | Google's instruction model | Strong general math capabilities |
+| Mistral 7B | High-performance model | Good balance of speed and accuracy |
+| Smaug 34B | Very large model | Complex multi-step problem solving |
+| WizardMath 7B | Math-focused fine-tuning | Specialized mathematical explanations |
+| MAmmoTH 7B | Math assistant model | Step-by-step solution walkthrough |
+
+Different models may perform better on different types of math problems. If one model struggles with a particular question, try another from the dropdown menu.
 
 ## Local Development
 

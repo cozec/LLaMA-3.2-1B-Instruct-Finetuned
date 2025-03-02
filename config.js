@@ -20,6 +20,30 @@ const CONFIG = {
         {
             id: "gpt2", 
             name: "GPT-2 (Always available)"
+        },
+        {
+            id: "deepseek-ai/deepseek-math-7b-rl",
+            name: "DeepSeek Math 7B (Specialized)"
+        },
+        {
+            id: "google/gemma-7b-it",
+            name: "Gemma 7B (Strong at math)"
+        },
+        {
+            id: "mistralai/Mistral-7B-Instruct-v0.2",
+            name: "Mistral 7B (Good math capabilities)"
+        },
+        {
+            id: "abacusai/Smaug-34B-v0.1",
+            name: "Smaug 34B (Advanced math, larger model)"
+        },
+        {
+            id: "WizardLM/WizardMath-7B-V1.0",
+            name: "WizardMath 7B (Math-focused)"
+        },
+        {
+            id: "TIGER-Lab/MAmmoTH-7B",
+            name: "MAmmoTH 7B (Math Assistant)"
         }
     ]
 }; 
