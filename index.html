@@ -100,25 +100,77 @@
         #save-api-url:hover {
             background-color: #219653;
         }
+        .api-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <h1>Ayden Math Q&A</h1>
     
     <div class="container">
-        <div class="api-url-container">
-            <h3>Model Server URL:</h3>
-            <p>Enter the URL of your model server (e.g., http://your-server.com:5000/generate)</p>
-            <div style="display: flex;">
-                <input type="text" id="api-url" placeholder="http://your-server.com:5000/generate">
-                <button id="save-api-url">Save</button>
-            </div>
+        <div class="tabs">
+            <div class="tab active" data-tab="model-tab">Model Server</div>
+            <div class="tab" data-tab="huggingface-tab">Hugging Face API</div>
+            <div class="tab" data-tab="examples-tab">Example Problems</div>
         </div>
+        
+        <div class="tab-content active" id="model-tab">
+            <div class="api-url-container">
+                <h3>Model Server URL:</h3>
+                <p>Enter the URL of your model server (e.g., http://your-server.com:5000/generate)</p>
+                <div style="display: flex;">
+                    <input type="text" id="api-url" placeholder="http://your-server.com:5000/generate">
+                    <button id="save-api-url">Save</button>
+                </div>
+            </div>
 
-        <h2>Ask a question:</h2>
-        <textarea id="prompt-input" placeholder="Enter your question here..."></textarea>
-        <button id="submit-btn">Get Answer</button>
-        <div class="loading" id="loading-indicator">Thinking</div>
+            <h2>Ask a question:</h2>
+            <textarea id="prompt-input" placeholder="Enter your question here..."></textarea>
+            <button id="submit-btn">Get Answer</button>
+            <div class="loading" id="loading-indicator">Thinking</div>
+        </div>
+        
+        <div class="tab-content" id="huggingface-tab">
+            <h2>Hugging Face Inference API</h2>
+            <p>Use the Hugging Face Inference API to access the model:</p>
+            
+            <div class="form-group">
+                <label for="hf-api-token">API Token:</label>
+                <input type="password" id="hf-api-token" class="api-input" placeholder="Enter your Hugging Face API token">
+                <button id="save-hf-token">Save Token</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="hf-model-id">Model ID:</label>
+                <input type="text" id="hf-model-id" class="api-input" value="ai-nexuz/llama-3.2-1b-instruct-fine-tuned" placeholder="Model ID (e.g., ai-nexuz/llama-3.2-1b-instruct-fine-tuned)">
+            </div>
+            
+            <h2>Ask a question:</h2>
+            <textarea id="hf-prompt-input" placeholder="Enter your question here..."></textarea>
+            <button id="hf-submit-btn">Get Answer</button>
+            <div class="loading" id="hf-loading-indicator">Thinking</div>
+        </div>
+        
+        <div class="tab-content" id="examples-tab">
+            <h2>Example Math Problems:</h2>
+            <p>Click on any problem to see the solution:</p>
+            <div class="examples-container" id="examples-list"></div>
+        </div>
         
         <div class="response-container">
             <h3>Response:</h3>
@@ -134,6 +186,12 @@
             const submitButton = document.getElementById('submit-btn');
             const responseOutput = document.getElementById('response-output');
             const loadingIndicator = document.getElementById('loading-indicator');
+            const hfApiTokenInput = document.getElementById('hf-api-token');
+            const saveHfTokenButton = document.getElementById('save-hf-token');
+            const hfModelIdInput = document.getElementById('hf-model-id');
+            const hfPromptInput = document.getElementById('hf-prompt-input');
+            const hfSubmitButton = document.getElementById('hf-submit-btn');
+            const hfLoadingIndicator = document.getElementById('hf-loading-indicator');
 
             // Load saved API URL from local storage
             const savedApiUrl = localStorage.getItem('modelApiUrl');
@@ -206,6 +264,92 @@
                     // Re-enable input and hide loading
                     submitButton.disabled = false;
                     loadingIndicator.style.display = 'none';
+                }
+            });
+
+            // Load saved Hugging Face API token from local storage
+            const savedHfToken = localStorage.getItem('hfApiToken');
+            if (savedHfToken) {
+                hfApiTokenInput.value = savedHfToken;
+            }
+            
+            // Save Hugging Face API token to local storage
+            saveHfTokenButton.addEventListener('click', function() {
+                const token = hfApiTokenInput.value.trim();
+                if (token) {
+                    localStorage.setItem('hfApiToken', token);
+                    alert('API token saved!');
+                } else {
+                    alert('Please enter a valid API token');
+                }
+            });
+            
+            // Handle Hugging Face API submission
+            hfSubmitButton.addEventListener('click', async function() {
+                const prompt = hfPromptInput.value.trim();
+                const token = hfApiTokenInput.value.trim();
+                const modelId = hfModelIdInput.value.trim();
+                
+                if (!prompt) {
+                    alert('Please enter a question');
+                    return;
+                }
+
+                if (!token) {
+                    alert('Please enter your Hugging Face API token and click Save Token');
+                    return;
+                }
+                
+                // Disable input and show loading
+                hfSubmitButton.disabled = true;
+                hfLoadingIndicator.style.display = 'block';
+                responseOutput.textContent = 'Generating response...';
+                
+                try {
+                    const apiUrl = `https://api-inference.huggingface.co/models/${modelId}`;
+                    console.log(`Sending request to Hugging Face: ${apiUrl}`);
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            inputs: prompt,
+                            parameters: {
+                                max_new_tokens: 500,
+                                temperature: 0.7,
+                                top_p: 0.9,
+                                do_sample: true
+                            }
+                        }),
+                    });
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Hugging Face API error (${response.status}): ${errorText}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Hugging Face response:', data);
+                    
+                    // Handle the response, which could be in different formats
+                    if (Array.isArray(data) && data.length > 0 && data[0].generated_text) {
+                        responseOutput.textContent = data[0].generated_text;
+                    } else if (typeof data === 'string') {
+                        responseOutput.textContent = data;
+                    } else {
+                        // If unknown format, stringify it
+                        responseOutput.textContent = JSON.stringify(data, null, 2);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    responseOutput.textContent = `Error generating response: ${error.message}`;
+                } finally {
+                    // Re-enable input and hide loading
+                    hfSubmitButton.disabled = false;
+                    hfLoadingIndicator.style.display = 'none';
                 }
             });
         });
