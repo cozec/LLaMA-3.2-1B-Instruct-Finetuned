@@ -122,12 +122,14 @@
                         body: JSON.stringify({ prompt: prompt }),
                     });
                     
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    
                     const data = await response.json();
-                    responseOutput.textContent = data.response;
+                    
+                    if (data.response && data.response.startsWith('Error:')) {
+                        console.error('Error from API:', data.response);
+                        responseOutput.textContent = data.response;
+                    } else {
+                        responseOutput.textContent = data.response || 'No response received';
+                    }
                 } catch (error) {
                     console.error('Error:', error);
                     responseOutput.textContent = `Error generating response: ${error.message}`;

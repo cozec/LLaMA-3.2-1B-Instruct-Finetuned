@@ -52,55 +52,91 @@ def generate_response(prompt):
         logger.error(error_msg)
         return error_msg
 
-# Handler for Vercel Python Serverless Functions
-def handler(request):
+def handler(event, context):
     """
-    Main handler for Vercel Python serverless functions
-    This follows Vercel's expected format for Python handlers
+    Standard handler for Vercel Python serverless functions
     """
+    logger.info("Handler function called")
+    
     try:
-        # Get request body
-        body = request.get('body', '{}')
-        if isinstance(body, bytes):
-            body = body.decode('utf-8')
-        
-        # Parse JSON
-        data = json.loads(body)
-        prompt = data.get('prompt', '')
-        
-        if not prompt:
-            logger.warning("No prompt provided in request")
+        # Get API URL from environment
+        api_url = os.environ.get("MODEL_API_URL")
+        if not api_url:
             return {
-                "statusCode": 400,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*"
-                },
-                "body": json.dumps({"error": "No prompt provided"})
+                "statusCode": 500,
+                "body": json.dumps({
+                    "response": "Error: MODEL_API_URL environment variable not set. Please configure it in Vercel."
+                })
             }
         
-        logger.info(f"Processing prompt: {prompt[:50]}...")
-        
-        # Call the model API
-        response = generate_response(prompt)
-        
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
-            },
-            "body": json.dumps({"response": response})
-        }
-        
+        # Parse request body
+        try:
+            body = json.loads(event.get('body', '{}'))
+            prompt = body.get('prompt', '')
+        except:
+            logger.error("Failed to parse request body")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({
+                    "response": "Error: Invalid request format"
+                })
+            }
+            
+        if not prompt:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({
+                    "response": "Error: No prompt provided"
+                })
+            }
+            
+        # Log request
+        logger.info(f"Sending request to model API: {api_url}")
+        logger.info(f"Prompt: {prompt[:50]}...")
+            
+        # Call model API
+        try:
+            response = requests.post(
+                api_url,
+                json={"prompt": prompt},
+                headers={"Content-Type": "application/json"},
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                return {
+                    "statusCode": 200,
+                    "body": json.dumps({
+                        "response": result.get("response", "No response from model API")
+                    })
+                }
+            else:
+                error_msg = f"Model API returned status code {response.status_code}"
+                logger.error(error_msg)
+                return {
+                    "statusCode": 500,
+                    "body": json.dumps({
+                        "response": f"Error: {error_msg}"
+                    })
+                }
+                
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Error connecting to model API: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "statusCode": 500,
+                "body": json.dumps({
+                    "response": error_msg
+                })
+            }
+            
     except Exception as e:
-        error_msg = f"Error in handler: {str(e)}"
+        error_msg = f"Unexpected error: {str(e)}"
         logger.error(error_msg)
         return {
             "statusCode": 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
-            },
-            "body": json.dumps({"error": error_msg})
+            "body": json.dumps({
+                "response": error_msg
+            })
         }
