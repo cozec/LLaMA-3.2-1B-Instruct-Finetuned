@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS for all routes and origins
 
 # Set the port
 PORT = os.environ.get("PORT", 5000)
@@ -59,20 +59,32 @@ def initialize_model():
         model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, device_map=device_map)
         logger.info("Model loaded successfully!")
 
-@app.route('/generate', methods=['POST'])
+@app.route('/generate', methods=['POST', 'OPTIONS'])
 def generate():
     """Generate text based on the provided prompt."""
+    # Handle preflight OPTIONS request for CORS
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     try:
+        # Log the request
+        logger.info(f"Received request from: {request.remote_addr}")
+        
         # Initialize model if not already done
         if model is None or tokenizer is None:
             initialize_model()
         
         # Get prompt from request
         data = request.json
+        if not data:
+            logger.warning("No JSON data in request")
+            return jsonify({'error': 'No JSON data provided'}), 400
+            
         prompt = data.get('prompt', '')
         
         if not prompt:
-            return jsonify({'error': 'No prompt provided'}), 400
+            logger.warning("No prompt provided in request")
+            return jsonify({'response': 'Error: No prompt provided'}), 400
         
         logger.info(f"Processing prompt: {prompt[:50]}{'...' if len(prompt) > 50 else ''}")
         
@@ -87,11 +99,12 @@ def generate():
         outputs = model.generate(**inputs, max_length=600)
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
         
+        logger.info("Response generated successfully")
         return jsonify({'response': response})
     
     except Exception as e:
         logger.error(f"Error generating response: {str(e)}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'response': f'Error: {str(e)}'}), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
