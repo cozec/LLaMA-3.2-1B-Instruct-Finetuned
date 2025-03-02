@@ -93,6 +93,61 @@
             margin-bottom: 5px;
             font-weight: bold;
         }
+        
+        .info-alert {
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #e0f7fa;
+            border-left: 4px solid #00bcd4;
+            border-radius: 4px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: #3498db;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .retry-button {
+            background-color: #9b59b6;
+            margin-left: 10px;
+        }
+        
+        .retry-button:hover {
+            background-color: #8e44ad;
+        }
+        
+        .model-suggestions {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        
+        .model-option {
+            display: block;
+            padding: 8px;
+            margin: 5px 0;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .model-option:hover {
+            background-color: #f8f8f8;
+        }
     </style>
 </head>
 <body>
@@ -101,6 +156,11 @@
     <div class="container">
         <h2>Hugging Face Inference API</h2>
         <p>Use the Hugging Face Inference API to access the model:</p>
+        
+        <div class="info-alert">
+            <strong>Note:</strong> Free-tier API usage may experience timeouts during high demand. 
+            If you receive a "Model too busy" error, please try again in a few minutes or try one of the alternative models below.
+        </div>
         
         <div class="form-group">
             <label for="hf-api-token">API Token:</label>
@@ -111,6 +171,14 @@
         <div class="form-group">
             <label for="hf-model-id">Model ID:</label>
             <input type="text" id="hf-model-id" class="api-input" value="ai-nexuz/llama-3.2-1b-instruct-fine-tuned" placeholder="Model ID (e.g., ai-nexuz/llama-3.2-1b-instruct-fine-tuned)">
+        </div>
+        
+        <div class="model-suggestions">
+            <h3>Alternative Models:</h3>
+            <p>If the primary model is busy, you can try one of these alternatives:</p>
+            <div class="model-option" data-model="meta-llama/Meta-Llama-3-8B-Instruct">meta-llama/Meta-Llama-3-8B-Instruct (larger, but may be more available)</div>
+            <div class="model-option" data-model="microsoft/phi-2">microsoft/phi-2 (smaller, faster response)</div>
+            <div class="model-option" data-model="Felladrin/Mathema-7B">Felladrin/Mathema-7B (specialized for math)</div>
         </div>
         
         <h2>Ask a question:</h2>
@@ -151,8 +219,22 @@
                 }
             });
             
-            // Handle submission
+            // Set up model selection from alternatives
+            const modelOptions = document.querySelectorAll('.model-option');
+            modelOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    const modelId = this.getAttribute('data-model');
+                    hfModelIdInput.value = modelId;
+                    alert(`Model changed to: ${modelId}`);
+                });
+            });
+            
+            // Handle submission with retry capability
             submitButton.addEventListener('click', async function() {
+                await performRequest();
+            });
+            
+            async function performRequest(isRetry = false, retryCount = 0) {
                 const prompt = promptInput.value.trim();
                 const token = hfApiTokenInput.value.trim();
                 const modelId = hfModelIdInput.value.trim();
@@ -170,7 +252,12 @@
                 // Disable input and show loading
                 submitButton.disabled = true;
                 loadingIndicator.style.display = 'block';
-                responseOutput.textContent = 'Generating response...';
+                
+                if (!isRetry) {
+                    responseOutput.textContent = 'Generating response...';
+                } else {
+                    responseOutput.innerHTML = `Retrying (attempt ${retryCount+1})... <div class="spinner"></div>`;
+                }
                 
                 try {
                     const apiUrl = `https://api-inference.huggingface.co/models/${modelId}`;
@@ -189,6 +276,9 @@
                                 temperature: 0.7,
                                 top_p: 0.9,
                                 do_sample: true
+                            },
+                            options: {
+                                wait_for_model: true
                             }
                         }),
                     });
@@ -212,13 +302,40 @@
                     }
                 } catch (error) {
                     console.error('Error:', error);
-                    responseOutput.textContent = `Error generating response: ${error.message}`;
+                    
+                    // Check if it's a timeout or busy model error
+                    if (error.message.includes('too busy') || error.message.includes('timeout')) {
+                        if (retryCount < 2) { // Limit to 3 attempts total
+                            responseOutput.innerHTML = `
+                                Error: The model is currently busy. 
+                                <button id="retry-btn" class="retry-button">Retry Now</button> or wait a few minutes and try again.
+                                <p>You can also try one of the alternative models above.</p>
+                            `;
+                            
+                            // Set up retry button
+                            document.getElementById('retry-btn').addEventListener('click', function() {
+                                performRequest(true, retryCount + 1);
+                            });
+                        } else {
+                            responseOutput.innerHTML = `
+                                <p>Error: The model is still busy after multiple attempts.</p>
+                                <p>Suggestions:</p>
+                                <ul>
+                                    <li>Wait a few minutes before trying again</li>
+                                    <li>Try one of the alternative models above</li>
+                                    <li>Try during off-peak hours</li>
+                                </ul>
+                            `;
+                        }
+                    } else {
+                        responseOutput.textContent = `Error generating response: ${error.message}`;
+                    }
                 } finally {
                     // Re-enable input and hide loading
                     submitButton.disabled = false;
                     loadingIndicator.style.display = 'none';
                 }
-            });
+            }
         });
     </script>
 </body>
