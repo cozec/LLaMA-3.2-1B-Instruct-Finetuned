@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLaMA-3.2-1B Q&A Interface</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+            margin-bottom: 15px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .response-container {
+            margin-top: 30px;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+            white-space: pre-wrap;
+            min-height: 100px;
+        }
+        .loading {
+            text-align: center;
+            margin-top: 20px;
+            display: none;
+        }
+        .loading:after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: '....'; }
+        }
+    </style>
+</head>
+<body>
+    <h1>LLaMA-3.2-1B Q&A Interface</h1>
+    
+    <div class="container">
+        <h2>Ask a question:</h2>
+        <textarea id="prompt-input" placeholder="Enter your question here..."></textarea>
+        <button id="submit-btn">Get Answer</button>
+        <div class="loading" id="loading-indicator">Thinking</div>
+        
+        <div class="response-container">
+            <h3>Response:</h3>
+            <div id="response-output">The model response will appear here.</div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const promptInput = document.getElementById('prompt-input');
+            const submitButton = document.getElementById('submit-btn');
+            const responseOutput = document.getElementById('response-output');
+            const loadingIndicator = document.getElementById('loading-indicator');
+
+            submitButton.addEventListener('click', async function() {
+                const prompt = promptInput.value.trim();
+                
+                if (!prompt) {
+                    alert('Please enter a question');
+                    return;
+                }
+                
+                // Disable input and show loading
+                submitButton.disabled = true;
+                loadingIndicator.style.display = 'block';
+                responseOutput.textContent = 'Generating response...';
+                
+                try {
+                    const response = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ prompt: prompt }),
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    responseOutput.textContent = data.response;
+                } catch (error) {
+                    console.error('Error:', error);
+                    responseOutput.textContent = `Error generating response: ${error.message}`;
+                } finally {
+                    // Re-enable input and hide loading
+                    submitButton.disabled = false;
+                    loadingIndicator.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
