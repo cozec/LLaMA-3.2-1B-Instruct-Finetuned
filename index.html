@@ -373,6 +373,12 @@
             <button id="save-hf-token"><i class="fas fa-save"></i> Save Token</button>
         </div>
         
+        <div class="form-group" id="deepseek-token-group" style="display: none;">
+            <label for="deepseek-api-token"><i class="fas fa-key"></i> DeepSeek API Token:</label>
+            <input type="password" id="deepseek-api-token" class="api-input" placeholder="Enter your DeepSeek API token">
+            <button id="save-deepseek-token"><i class="fas fa-save"></i> Save Token</button>
+        </div>
+        
         <div class="form-group">
             <label for="hf-model-id"><i class="fas fa-robot"></i> Choose Model:</label>
             <select id="hf-model-id" class="model-dropdown">
@@ -435,6 +441,9 @@
             const submitButton = document.getElementById('submit-btn');
             const responseOutput = document.getElementById('response-output');
             const loadingIndicator = document.getElementById('loading-indicator');
+            const deepseekTokenGroup = document.getElementById('deepseek-token-group');
+            const deepseekApiTokenInput = document.getElementById('deepseek-api-token');
+            const saveDeepseekTokenButton = document.getElementById('save-deepseek-token');
 
             // Verify the CONFIG object is available
             if (typeof CONFIG === 'undefined' || !CONFIG) {
@@ -447,6 +456,12 @@
             const savedHfToken = localStorage.getItem('hfApiToken');
             if (savedHfToken) {
                 hfApiTokenInput.value = savedHfToken;
+            }
+            
+            // Load saved DeepSeek API token from local storage
+            const savedDeepseekToken = localStorage.getItem('deepseekApiToken');
+            if (savedDeepseekToken) {
+                deepseekApiTokenInput.value = savedDeepseekToken;
             }
             
             // Save Hugging Face API token to local storage
@@ -486,6 +501,44 @@
                     alert('Please enter a valid API token');
                 }
             });
+            
+            // Save DeepSeek API token to local storage
+            saveDeepseekTokenButton.addEventListener('click', function() {
+                const token = deepseekApiTokenInput.value.trim();
+                if (token) {
+                    localStorage.setItem('deepseekApiToken', token);
+                    
+                    // Create notification element
+                    const notification = document.createElement('div');
+                    notification.style.position = 'fixed';
+                    notification.style.bottom = '20px';
+                    notification.style.right = '20px';
+                    notification.style.background = 'var(--success-color)';
+                    notification.style.color = 'white';
+                    notification.style.padding = '12px 20px';
+                    notification.style.borderRadius = 'var(--border-radius)';
+                    notification.style.boxShadow = 'var(--box-shadow)';
+                    notification.style.zIndex = '9999';
+                    notification.style.display = 'flex';
+                    notification.style.alignItems = 'center';
+                    notification.innerHTML = '<i class="fas fa-check-circle" style="margin-right: 8px;"></i> DeepSeek API token saved successfully!';
+                    
+                    document.body.appendChild(notification);
+                    
+                    // Remove notification after 3 seconds
+                    setTimeout(() => {
+                        notification.style.opacity = '0';
+                        notification.style.transform = 'translateY(10px)';
+                        notification.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                        
+                        setTimeout(() => {
+                            document.body.removeChild(notification);
+                        }, 300);
+                    }, 3000);
+                } else {
+                    alert('Please enter a valid DeepSeek API token');
+                }
+            });
 
             console.log('Populating dropdown with models:', CONFIG.MODELS);
             
@@ -506,12 +559,27 @@
                 hfModelIdInput.value = savedModel;
             }
             
+            // Check if we need to show the DeepSeek token field based on the current selection
+            checkAndToggleDeepSeekTokenField(hfModelIdInput.value);
+            
             // Save selected model when it changes
             hfModelIdInput.addEventListener('change', function() {
                 const selectedModel = hfModelIdInput.value;
                 localStorage.setItem('selectedModel', selectedModel);
                 console.log(`Model changed to: ${selectedModel}`);
+                
+                // Check if we need to show the DeepSeek token field
+                checkAndToggleDeepSeekTokenField(selectedModel);
             });
+            
+            // Function to check if the selected model is a DeepSeek model and toggle the token field
+            function checkAndToggleDeepSeekTokenField(modelId) {
+                if (modelId.includes('deepseek')) {
+                    deepseekTokenGroup.style.display = 'block';
+                } else {
+                    deepseekTokenGroup.style.display = 'none';
+                }
+            }
             
             // Handle submission with retry capability
             submitButton.addEventListener('click', async function() {
@@ -528,17 +596,27 @@
             
             async function performRequest(isRetry = false, retryCount = 0) {
                 const prompt = promptInput.value.trim();
-                const token = hfApiTokenInput.value.trim();
+                const hfToken = hfApiTokenInput.value.trim();
+                const deepseekToken = deepseekApiTokenInput.value.trim();
                 const modelId = hfModelIdInput.value.trim();
+                const isDeepSeekModel = modelId.includes('deepseek');
                 
                 if (!prompt) {
                     alert('Please enter a question');
                     return;
                 }
 
-                if (!token) {
-                    alert('Please enter your Hugging Face API token and click Save Token');
-                    return;
+                // Check for appropriate token
+                if (isDeepSeekModel) {
+                    if (!deepseekToken) {
+                        alert('Please enter your DeepSeek API token and click Save Token');
+                        return;
+                    }
+                } else {
+                    if (!hfToken) {
+                        alert('Please enter your Hugging Face API token and click Save Token');
+                        return;
+                    }
                 }
                 
                 // Disable input and show loading
@@ -552,51 +630,115 @@
                 }
                 
                 try {
-                    const apiUrl = `https://api-inference.huggingface.co/models/${modelId}`;
-                    console.log(`Sending request to Hugging Face: ${apiUrl}`);
+                    // Check if we're using a DeepSeek model
+                    let responseData;
                     
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ 
-                            inputs: prompt,
-                            parameters: {
-                                max_new_tokens: 500,
-                                temperature: 0.7,
-                                top_p: 0.9,
-                                do_sample: true
+                    if (isDeepSeekModel) {
+                        // Use DeepSeek API directly
+                        console.log('Using DeepSeek API directly');
+                        
+                        // DeepSeek API endpoint - might need to be updated based on actual documentation
+                        const deepseekApiUrl = 'https://api.deepseek.com/v1/chat/completions';
+                        
+                        const deepseekResponse = await fetch(deepseekApiUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${deepseekToken}`,
+                                'Content-Type': 'application/json',
                             },
-                            options: {
-                                wait_for_model: true
-                            }
-                        }),
-                    });
-                    
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`Hugging Face API error (${response.status}): ${errorText}`);
-                    }
-                    
-                    const data = await response.json();
-                    console.log('Hugging Face response:', data);
-                    
-                    // Handle the response, which could be in different formats
-                    if (Array.isArray(data) && data.length > 0 && data[0].generated_text) {
-                        responseOutput.textContent = data[0].generated_text;
-                    } else if (typeof data === 'string') {
-                        responseOutput.textContent = data;
+                            body: JSON.stringify({
+                                model: "deepseek-math", // Use appropriate DeepSeek model ID
+                                messages: [
+                                    {
+                                        role: "system",
+                                        content: "You are a helpful math assistant that solves problems step-by-step."
+                                    },
+                                    {
+                                        role: "user",
+                                        content: prompt
+                                    }
+                                ],
+                                temperature: 0.7,
+                                max_tokens: 500
+                            })
+                        });
+                        
+                        if (!deepseekResponse.ok) {
+                            const errorText = await deepseekResponse.text();
+                            throw new Error(`DeepSeek API error (${deepseekResponse.status}): ${errorText}`);
+                        }
+                        
+                        const deepseekData = await deepseekResponse.json();
+                        console.log('DeepSeek response:', deepseekData);
+                        
+                        // Extract response text from DeepSeek format (adjust based on actual API response format)
+                        responseData = deepseekData.choices[0].message.content;
                     } else {
-                        // If unknown format, stringify it
-                        responseOutput.textContent = JSON.stringify(data, null, 2);
+                        // Use Hugging Face API for non-DeepSeek models
+                        const apiUrl = `https://api-inference.huggingface.co/models/${modelId}`;
+                        console.log(`Sending request to Hugging Face: ${apiUrl}`);
+                        
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${hfToken}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ 
+                                inputs: prompt,
+                                parameters: {
+                                    max_new_tokens: 500,
+                                    temperature: 0.7,
+                                    top_p: 0.9,
+                                    do_sample: true
+                                },
+                                options: {
+                                    wait_for_model: true
+                                }
+                            }),
+                        });
+                        
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(`Hugging Face API error (${response.status}): ${errorText}`);
+                        }
+                        
+                        const data = await response.json();
+                        console.log('Hugging Face response:', data);
+                        
+                        // Handle the response, which could be in different formats
+                        if (Array.isArray(data) && data.length > 0 && data[0].generated_text) {
+                            responseData = data[0].generated_text;
+                        } else if (typeof data === 'string') {
+                            responseData = data;
+                        } else {
+                            // If unknown format, stringify it
+                            responseData = JSON.stringify(data, null, 2);
+                        }
                     }
+                    
+                    // Display the response
+                    responseOutput.textContent = responseData;
+                    
                 } catch (error) {
                     console.error('Error:', error);
                     
+                    // Add a special case for DeepSeek API errors
+                    if (error.message.includes('DeepSeek API error')) {
+                        responseOutput.innerHTML = `
+                            <div style="color: var(--error-color); margin-bottom: 15px;">
+                                <i class="fas fa-exclamation-circle"></i> DeepSeek API Error: ${error.message}
+                            </div>
+                            <p>Possible issues:</p>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li>Your API token may not be valid for DeepSeek</li>
+                                <li>The DeepSeek service might be temporarily unavailable</li>
+                                <li>You may need a different token for DeepSeek's API</li>
+                            </ul>
+                        `;
+                    }
                     // Check if it's a timeout or busy model error
-                    if (error.message.includes('too busy') || error.message.includes('timeout')) {
+                    else if (error.message.includes('too busy') || error.message.includes('timeout')) {
                         if (retryCount < 2) { // Limit to 3 attempts total
                             responseOutput.innerHTML = `
                                 <div style="color: var(--error-color); margin-bottom: 15px;">
