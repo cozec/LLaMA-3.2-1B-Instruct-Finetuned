@@ -637,42 +637,95 @@
                         // Use DeepSeek API directly
                         console.log('Using DeepSeek API directly');
                         
-                        // DeepSeek API endpoint - might need to be updated based on actual documentation
+                        // DeepSeek API endpoint
                         const deepseekApiUrl = 'https://api.deepseek.com/v1/chat/completions';
                         
-                        const deepseekResponse = await fetch(deepseekApiUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${deepseekToken}`,
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                model: "deepseek-math", // Use appropriate DeepSeek model ID
-                                messages: [
-                                    {
-                                        role: "system",
-                                        content: "You are a helpful math assistant that solves problems step-by-step."
-                                    },
-                                    {
-                                        role: "user",
-                                        content: prompt
-                                    }
-                                ],
-                                temperature: 0.7,
-                                max_tokens: 500
-                            })
-                        });
+                        // Try different model formats for DeepSeek
+                        let modelAttempts = [];
                         
-                        if (!deepseekResponse.ok) {
-                            const errorText = await deepseekResponse.text();
-                            throw new Error(`DeepSeek API error (${deepseekResponse.status}): ${errorText}`);
+                        // Extract the specific DeepSeek model from the ID
+                        // Format is typically 'deepseek-ai/model-name'
+                        if (modelId.includes('/')) {
+                            // Try both the part after the slash and the full ID
+                            const modelNamePart = modelId.split('/')[1];
+                            modelAttempts = [modelNamePart, modelId];
+                            
+                            // If it's the deepseek-math model, also try other variants
+                            if (modelNamePart.includes('deepseek-math')) {
+                                modelAttempts.push('deepseek-math-7b-instruct');
+                                modelAttempts.push('deepseek-math-7b-base');
+                            }
+                        } else {
+                            // If no slash, use the original ID and add a few variants
+                            modelAttempts = [modelId];
+                            if (modelId.includes('deepseek-math')) {
+                                modelAttempts.push('deepseek-math-7b-instruct');
+                                modelAttempts.push('deepseek-math-7b-base');
+                            }
                         }
                         
-                        const deepseekData = await deepseekResponse.json();
-                        console.log('DeepSeek response:', deepseekData);
+                        console.log(`Will try these DeepSeek models: ${modelAttempts.join(', ')}`);
                         
-                        // Extract response text from DeepSeek format (adjust based on actual API response format)
-                        responseData = deepseekData.choices[0].message.content;
+                        // Try each model format, stopping at the first one that works
+                        let success = false;
+                        let lastError = null;
+                        
+                        for (const deepseekModelId of modelAttempts) {
+                            if (success) continue;
+                            
+                            try {
+                                console.log(`Trying DeepSeek model: ${deepseekModelId}`);
+                                
+                                const deepseekResponse = await fetch(deepseekApiUrl, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': `Bearer ${deepseekToken}`,
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        model: deepseekModelId,
+                                        messages: [
+                                            {
+                                                role: "system",
+                                                content: "You are a helpful math assistant that solves problems step-by-step. Provide detailed explanations and show your work clearly."
+                                            },
+                                            {
+                                                role: "user",
+                                                content: prompt
+                                            }
+                                        ],
+                                        temperature: 0.7,
+                                        max_tokens: 500
+                                    })
+                                });
+                                
+                                if (!deepseekResponse.ok) {
+                                    const errorText = await deepseekResponse.text();
+                                    lastError = new Error(`DeepSeek API error (${deepseekResponse.status}): ${errorText}`);
+                                    console.error(`Failed with model ${deepseekModelId}:`, lastError);
+                                    continue; // Try the next model
+                                }
+                                
+                                const deepseekData = await deepseekResponse.json();
+                                console.log(`Success with model ${deepseekModelId}:`, deepseekData);
+                                
+                                // Extract response text from DeepSeek format
+                                responseData = deepseekData.choices[0].message.content;
+                                
+                                // Add a note about which model worked
+                                responseData = `[Using model: ${deepseekModelId}]\n\n${responseData}`;
+                                success = true;
+                                
+                            } catch (modelError) {
+                                console.error(`Error with model ${deepseekModelId}:`, modelError);
+                                lastError = modelError;
+                            }
+                        }
+                        
+                        // If none of the models worked, throw the last error
+                        if (!success && lastError) {
+                            throw lastError;
+                        }
                     } else {
                         // Use Hugging Face API for non-DeepSeek models
                         const apiUrl = `https://api-inference.huggingface.co/models/${modelId}`;
@@ -725,16 +778,32 @@
                     
                     // Add a special case for DeepSeek API errors
                     if (error.message.includes('DeepSeek API error')) {
+                        const errorDetails = error.message.includes('Model Not Exist') ? 
+                            'The specified model does not exist on DeepSeek\'s platform.' : 
+                            error.message;
+                            
                         responseOutput.innerHTML = `
                             <div style="color: var(--error-color); margin-bottom: 15px;">
-                                <i class="fas fa-exclamation-circle"></i> DeepSeek API Error: ${error.message}
+                                <i class="fas fa-exclamation-circle"></i> DeepSeek API Error: ${errorDetails}
                             </div>
                             <p>Possible issues:</p>
                             <ul style="margin-left: 20px; margin-top: 10px;">
-                                <li>Your API token may not be valid for DeepSeek</li>
-                                <li>The DeepSeek service might be temporarily unavailable</li>
-                                <li>You may need a different token for DeepSeek's API</li>
+                                <li>Your DeepSeek API token may not be valid</li>
+                                <li>The DeepSeek model ID "${modelId}" is not correct</li>
+                                <li>You may need to subscribe to this model on DeepSeek's platform</li>
                             </ul>
+                            
+                            <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: var(--border-radius); border-left: 4px solid var(--warning-color);">
+                                <h4 style="margin-top: 0;">Available DeepSeek Models:</h4>
+                                <p>Based on DeepSeek documentation, try these models:</p>
+                                <ul style="margin-left: 20px; margin-top: 10px;">
+                                    <li><code>deepseek-coder-7b-instruct</code> - Good for general coding and math</li>
+                                    <li><code>deepseek-llm-7b-chat</code> - General purpose chat model</li>
+                                    <li><code>deepseek-math-7b-instruct</code> - Specialized for math problems</li>
+                                    <li><code>deepseek-math-7b-base</code> - Base math model</li>
+                                </ul>
+                                <p style="margin-top: 10px;">Make sure you have access to these models in your DeepSeek account.</p>
+                            </div>
                         `;
                     }
                     // Check if it's a timeout or busy model error
